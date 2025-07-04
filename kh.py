@@ -10,26 +10,32 @@ np.set_printoptions(precision=17)
 ### Unitary transformation for energies
 au2ev = 2.7211386021e1
 au2cm = 2.1947463e5
-ev2au = (1.0 / au2ev)
+ensv2au = (1.0 / au2ev)
 c_au = 137.035999084
 
-h5name_file = h5py.File('UO2Cl4_3d4f.rassi.h5', 'r')
+h5name_file = h5py.File('uo2_10_1_0_ci.rassi.h5', 'r')
 soc_energies_au = h5name_file['SOS_ENERGIES'][:]
 soc_energies = (soc_energies_au - soc_energies_au[0]) * au2ev
 
 #specific for each system:
 N_i = range(0, 1) #initial state 3d^10 4f^14 5f^0 [ground state only, SO State 1]
 N_n = range(197, 337) #intermediate states 3d^9 4f^14 5f^1 [SO State 170 - 198]
-N_f = range(169, 197) #number of final states 3d^10 4f^13 5f^1 [SO State 198 - 337]
+#N_f = range(169, 197) #number of final states 3d^10 4f^13 5f^1 [SO State 198 - 337]
+N_f = range(2, 197)
 Ei = soc_energies[N_i] # ground state energy
 En = soc_energies[N_n] #intermediate state energies
 Ef = soc_energies[N_f] # final state energies
 
 #range of E_em and E_em for RIXS map - change based on the experimental data
-E_em_grid = np.linspace(3300, 3400, 1000)
-E_ex_grid = np.linspace(3700, 3800, 1000)
+#M5edge: E_em_grid= 3100 - 3200; E_ex = 3500-3600
+#E_em_grid = np.linspace(3140, 3220, 5000)
+#E_ex_grid = np.linspace(3540, 3620, 5000)
 
-gamma_n = 5 #broadening of the intermediate state
+#M4edge: E_em_grid= 3300 - 3400; E_ex = 3700-3800
+E_em_grid = np.linspace(3340, 3370, 1000)#[::-1]
+E_ex_grid = np.linspace(3740, 3760, 1000)#[::-1]
+
+gamma_n = 3 #broadening of the intermediate state
 gamma_f = 1 #broadening of the final state
 
 edipmom_real = h5name_file['SOS_EDIPMOM_REAL']
@@ -58,6 +64,7 @@ edipmom_complex_fn_z = edipmom_complex_z[np.ix_(N_f, N_n)]
 
 mu_ni = np.stack([edipmom_complex_ni_x, edipmom_complex_ni_y, edipmom_complex_ni_z], axis=0)
 mu_fn = np.stack([edipmom_complex_fn_x, edipmom_complex_fn_y, edipmom_complex_fn_z], axis=0)
+print("edipmom_complex_x shape:", edipmom_complex_x.shape)
 print(mu_fn.shape)
 
 #print('mu_ni norm:', np.linalg.norm(mu_ni))
@@ -84,12 +91,11 @@ mu_ni_weighted = mu_ni_i_exp * denominator_exp  # (M, 3, N_n)
 print(mu_ni_weighted.shape)
 
 #mu_fn_T = mu_fn.transpose(0, 2, 1)
-#A = np.einsum('anf,man->mf', mu_fn_T, mu_ni_weighted)  # result (M, 3, N_f)
 A = np.einsum('afn,mbn->mfab', mu_fn, mu_ni_weighted)  # sum over intermediate states only -> result (E_ex_grid, N_n, cart,cart)
 
 #amplitude of the term over the intermediate states:
 I = np.abs(A)**2
-print(I.shape)
+#I_sum = np.sum(I, axis=(2, 3))
 
 #second term with broadening of final state:
 E_ex_ = E_ex_grid[:, None, None]   # (M,1,1)
@@ -100,7 +106,8 @@ Ei_   = Ei[None, None, None]        # scalar broadcasted (1,1,1)
 second_term = gamma_f / (((Ef_ - Ei_ - E_ex_ + E_em_)**2) + 0.25*gamma_f**2)
 second_term = second_term.squeeze()
 both_terms = np.einsum('ifxy,ifz->ixyz', I, second_term)  # final state summation, dims: (E_ex, cart, cart, E_em)
-
+#both_terms = np.einsum('if,ifl->il', I_sum, second_term)  # final state summation, dims: (E_ex, E_em)
+#both_terms = both_terms[::-1, ..., ::-1]
 #setting up for total cross section:
 ### THINK ABOUT CONVERSION LATER#####
 au_to_ev = 27.21138602
@@ -111,34 +118,39 @@ au_area_to_cm2 = a0_cm**2
 
 prefactor_au = (8 * np.pi) / (9 * c_au**4)
 sigma_total = prefactor_au * np.einsum('ixyz,i,z->iz', both_terms, E_ex_grid, E_em_grid**3)
-sigma_total_normalized = sigma_total / sigma_total.max()
+#sigma_total = prefactor_au * both_terms * E_ex_grid[:, None] * (E_em_grid[None, :] ** 3)
+#sigma_total_normalized = sigma_total / sigma_total.max()
 
 with h5py.File("rixs_map.h5", "w") as f:
     f.create_dataset("E_EX", data=E_ex_grid)
     f.create_dataset("E_EM", data=E_em_grid)
-    f.create_dataset("SIGMA_TOTAL", data=sigma_total_normalized)
+    f.create_dataset("SIGMA_TOTAL", data=sigma_total)
 
 def plot_rixs_map_from_h5(h5_filename):
+    
     with h5py.File(h5_filename, 'r') as f:
         E_em = f['E_EM'][:]
         E_ex = f['E_EX'][:]
         rixs_map = f['SIGMA_TOTAL'][:]
-
+       
     print(f"Intensity range: min={rixs_map.min()}, max={rixs_map.max()}")
 
     plt.figure(figsize=(8, 6))
-    vmin, vmax = np.percentile(rixs_map, [1, 99])
+    vmin=0 
+    vmax = np.max(rixs_map)
 
     pcm = plt.pcolormesh(E_ex, E_em, rixs_map.T,  # transpose so emission on y-axis
-                         shading='auto', cmap='inferno', vmin=vmin, vmax=vmax)
+                         shading='auto', cmap='terrain', vmin=vmin, vmax=vmax)
 
     plt.xlabel('Incident Energy (eV)')
     plt.ylabel('Emission Energy (eV)')
+   
     cbar = plt.colorbar(pcm)
-    cbar.set_label('Intensity (a.u.)')
+    cbar.set_label('Intensity (arb.)')
 
     plt.tight_layout()
-    plt.savefig('rixs_map_UO2Cl4_RASSCF_Etrans.png')
+    plt.savefig('_test_M4_RIXS_UO2.png')
     plt.show()
 
 plot_rixs_map_from_h5('rixs_map.h5')
+
