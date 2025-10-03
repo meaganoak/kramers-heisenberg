@@ -37,9 +37,9 @@ def print_and_plot_rixs_cuts(h5_filename, ex_cuts=None, em_cuts=None):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Plot RIXS cuts from .h5 file')
-    parser.add_argument('--h5', type=str, required=True, help='Path to RIXS map .h5 file')
-    parser.add_argument('--ex-cuts', type=float, nargs='*', help='List of incident energy cuts (eV)')
+    parser = argparse.ArgumentParser(description='Plot RIXS cuts from rixs_map.h5 file')
+    parser.add_argument('--h5', type=str, required=True, help='Path to rixs_map.h5 file')
+    parser.add_argument('--ex-cuts', type=float, nargs='*', help='List of excitation energy cuts (eV)')
     parser.add_argument('--em-cuts', type=float, nargs='*', help='List of emission energy cuts (eV)')
 
     args = parser.parse_args()
