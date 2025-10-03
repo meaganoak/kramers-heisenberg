@@ -13,30 +13,37 @@ au2cm = 2.1947463e5
 ensv2au = (1.0 / au2ev)
 c_au = 137.035999084
 
-h5name_file = h5py.File('uo2_10_1_0_ci.rassi.h5', 'r')
+
+##Change file name here######
+h5name_file = h5py.File('UO2Cl4_Cs.rassi.h5', 'r')
 soc_energies_au = h5name_file['SOS_ENERGIES'][:]
 soc_energies = (soc_energies_au - soc_energies_au[0]) * au2ev
 
-#specific for each system:
-N_i = range(0, 1) #initial state 3d^10 4f^14 5f^0 [ground state only, SO State 1]
-N_n = range(197, 337) #intermediate states 3d^9 4f^14 5f^1 [SO State 170 - 198]
-#N_f = range(169, 197) #number of final states 3d^10 4f^13 5f^1 [SO State 198 - 337]
-N_f = range(2, 197)
+#Change for each system, range is exclusionary to second number:
+N_i = range(1, 2) #initial state 3d^10 4f^14 5f^0 [ground state only, SO State 1]
+N_n = range(198, 338) #intermediate states 3d^9 4f^14 5f^1 [SO State 198 - 337]
+N_f = range(2, 198) #number of final states 3d^10 4f^13 5f^1 [SO State 170 - 197]
+
+# Convert to zero-indexing
+N_i = range(N_i.start - 1, N_i.stop - 1)
+N_n = range(N_n.start - 1, N_n.stop - 1)
+N_f = range(N_f.start - 1, N_f.stop - 1)
+
 Ei = soc_energies[N_i] # ground state energy
 En = soc_energies[N_n] #intermediate state energies
 Ef = soc_energies[N_f] # final state energies
 
 #range of E_em and E_em for RIXS map - change based on the experimental data
 #M5edge: E_em_grid= 3100 - 3200; E_ex = 3500-3600
-#E_em_grid = np.linspace(3140, 3220, 5000)
-#E_ex_grid = np.linspace(3540, 3620, 5000)
+E_em_grid = np.linspace(3140, 3220, 1000)
+E_ex_grid = np.linspace(3540, 3620, 1000)
 
 #M4edge: E_em_grid= 3300 - 3400; E_ex = 3700-3800
-E_em_grid = np.linspace(3340, 3370, 1000)#[::-1]
-E_ex_grid = np.linspace(3740, 3760, 1000)#[::-1]
+#E_em_grid = np.linspace(3340, 3370, 1000)#[::-1]
+#E_ex_grid = np.linspace(3740, 3760, 1000)#[::-1]
 
-gamma_n = 3 #broadening of the intermediate state
-gamma_f = 1 #broadening of the final state
+gamma_n = 3 #broadening of the intermediate state, eV
+gamma_f = 1 #broadening of the final state, eV; should be smaller than gamma_n
 
 edipmom_real = h5name_file['SOS_EDIPMOM_REAL']
 edipmom_real_x = edipmom_real[0, :, :]
@@ -140,7 +147,7 @@ def plot_rixs_map_from_h5(h5_filename):
     vmax = np.max(rixs_map)
 
     pcm = plt.pcolormesh(E_ex, E_em, rixs_map.T,  # transpose so emission on y-axis
-                         shading='auto', cmap='terrain', vmin=vmin, vmax=vmax)
+                         shading='auto', cmap='inferno', vmin=vmin, vmax=vmax)
 
     plt.xlabel('Incident Energy (eV)')
     plt.ylabel('Emission Energy (eV)')
@@ -149,7 +156,7 @@ def plot_rixs_map_from_h5(h5_filename):
     cbar.set_label('Intensity (arb.)')
 
     plt.tight_layout()
-    plt.savefig('_test_M4_RIXS_UO2.png')
+    plt.savefig('_test_M5_RIXS_UO2.png')
     plt.show()
 
 plot_rixs_map_from_h5('rixs_map.h5')
